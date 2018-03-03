@@ -45,6 +45,7 @@ object FromValue extends LowPriorityFromValue {
     new FromValue[BigDecimal] {
       val decimalConversion = new Conversions.DecimalConversion
       val decimalType = LogicalTypes.decimal(sp.precision, sp.scale)
+
       override def apply(value: Any, field: Field): BigDecimal = {
         decimalConversion.fromBytes(value.asInstanceOf[ByteBuffer], null, decimalType)
       }
@@ -112,10 +113,14 @@ object FromValue extends LowPriorityFromValue {
   }
 
   implicit def ScalaEnumFromValue[E <: Enumeration#Value](implicit tag: TypeTag[E]) = new FromValue[E] {
-    val typeRef = tag.tpe match { case t @ TypeRef(_, _, _) => t}
-    val klass = Class.forName(typeRef.pre.typeSymbol.asClass.fullName + "$")
     import scala.reflect.NameTransformer._
-    val enum = klass.getField(MODULE_INSTANCE_NAME).get(null).asInstanceOf[Enumeration]
+    private val typeRef = tag.tpe match {
+      case t@TypeRef(_, _, _) => t
+    }
+    private val enumObjectSymbol = typeRef.pre.typeSymbol.asClass
+    private val klass = Class.forName(ScalaEnumHelper.enumClassName(enumObjectSymbol))
+
+    private val enum = klass.getField(MODULE_INSTANCE_NAME).get(null).asInstanceOf[Enumeration]
 
     override def apply(value: Any, field: Field): E = {
       enum.withName(value.toString).asInstanceOf[E]
